@@ -13,8 +13,9 @@ Scanner scanner;
 
 void initScanner(const char* source) {
     // 初始化scanner
-    scanner.current = source;
     scanner.start = source;
+    scanner.current = source;
+    scanner.line = 1;
 }
 
 /***************************************************************************************
@@ -54,6 +55,22 @@ static bool match(char expected) {
     return true;
 }
 
+// scanner.current前进n个单位
+static char span(int n) {
+    for (int i = 0; i < n; i++) {
+        advance();
+    }
+    return peek();
+}
+
+// scanner.current后退n个单位
+static char revert(int n) {
+    for (int i = 0; i < n; i++) {
+        scanner.current--;
+    }
+    return peek();
+}
+
 // 传入TokenType, 创建对应类型的Token，并返回。
 static Token makeToken(TokenType type) {
     Token token;
@@ -78,22 +95,37 @@ static void skipWhitespace() {
     // 跳过空白字符: ' ', '\r', '\t', '\n'和注释
     // 注释以'//'开头, 一直到行尾
     // 注意更新scanner.line！
-}
-static TokenType identifierType() {
-    // 确定identifier类型主要有两种方式：
-    // 1. 将所有的关键字放入哈希表中，然后查表确认
-    // 2. 将所有的关键字放入Trie树中，然后查表确认
-    // Trie树的方式不管是空间上还是时间上都优于哈希表的方式
-}
 
-static Token identifier() {
-    // IDENTIFIER包含: 字母，数字和下划线  a
-    while (isAlpha(peek()) || isDigit(peek())) {
-        advance();
+    while (1) {
+        char c = peek();
+        if (c == ' ' || c == '\r' || c == '\t') {
+            advance();
+        }
+        else if (c == '\n') {
+            advance();
+            scanner.line++;
+        }
+        else if (c == '/') {
+            advance();
+            if (match('/')) {
+                while (peek() != '\n') {
+                    advance();
+                }
+            }
+            advance();
+        }
+        else {
+            break;
+        }
     }
-    // 这样的Token可能是标识符, 也可能是关键字, identifierType()是用来确定Token类型的
-    return makeToken(identifierType());
+
 }
+//static TokenType identifierType() {
+//    // 确定identifier类型主要有两种方式：
+//    // 1. 将所有的关键字放入哈希表中，然后查表确认
+//    // 2. 将所有的关键字放入Trie树中，然后查表确认
+//    // Trie树的方式不管是空间上还是时间上都优于哈希表的方式
+//}
 
 static Token number() {
     // 简单起见，我们将NUMBER的规则定义如下:
@@ -102,14 +134,77 @@ static Token number() {
     // 3. '.'号后面也要有数字
     // 这些都是合法的NUMBER: 123, 3.14
     // 这些都是不合法的NUMBER: 123., .14
+    char c;
+    bool next_to_dot = false;
+    while (1) {
+        c = peek();
+        if (isDigit(c)) {
+            advance();
+            if (next_to_dot) {
+                next_to_dot = false;
+            }
+        }
+        else if(c=='.' && !next_to_dot) {
+            advance();
+            next_to_dot = true;
+        }
+        else if(!isDigit(c) && next_to_dot){
+            return errorToken("Illegal number.");
+        }
+        else {
+            return makeToken(TOKEN_NUMBER);
+        }
+    }
 }
 
 static Token string() {
     // 字符串以"开头，以"结尾，而且不能跨行
+    char c;
+    while (1) {
+        c = peek();
+        if (c == '"') {
+            advance();
+            return makeToken(TOKEN_STRING);
+        }
+        else if (c=='\n') {
+            scanner.line++;
+            advance();
+            return errorToken("Illegal string.");
+        }
+        else {
+            advance();
+        }
+    }
 }
 
 static Token character() {
     // 字符'开头，以'结尾，而且不能跨行
+    char c;
+    bool has_char = false;
+    while (1) {
+        c = peek();
+        if (c == '\'') {
+            if (!has_char) {
+                advance();
+                return errorToken("Empty character.");
+            }
+            advance();
+            return makeToken(TOKEN_CHARACTER);
+        }
+        else if (!has_char) {
+            has_char = true;
+            if (c == '\\' ) {
+                advance();
+                if (peek() == '\'') {
+                    errorToken("Not a character.");
+                }
+            }
+            advance();
+        }
+        else {
+            return errorToken("Illegal character.");
+        }
+    }
 }
 
 
@@ -131,13 +226,148 @@ static TokenType identifierType() {
     char c = scanner.start[0];
     // 用switch语句实现Trie树
     switch (c) {  // 根据分支可能要不断调用chackKeyword()
-    case 'b': return checkKeyword(1, 4, "reak", TOKEN_BREAK);
-        ... // TODO
+    case 'b':
+        return checkKeyword(1, 4, "reak", TOKEN_BREAK);
+    case 'c':
+        c = scanner.start[1];
+        if (c == 'a') {
+            return checkKeyword(2, 2, "se", TOKEN_CASE);
+        }
+        else if (c == 'h') {
+            return checkKeyword(2, 2, "ar", TOKEN_CHAR);
+        }
+        else if (c == 'o') {
+            c = scanner.start[2];
+            if (c == 'n') {
+                c = scanner.start[3];
+                if (c == 't') {
+                    return checkKeyword(4, 4, "inue", TOKEN_CONTINUE);
+                }
+                else if (c == 's') {
+                    return checkKeyword(4, 1, "t", TOKEN_CONST);
+                }
+                else {
+                    return TOKEN_IDENTIFIER;
+                }
+            }
+            else {
+                return TOKEN_IDENTIFIER;
+            }
+        }
+        else {
+            return TOKEN_IDENTIFIER;
+        }
+    case 'd':
+        c = scanner.start[1];
+        if (c == 'e') {
+            return checkKeyword(2, 5, "fault", TOKEN_DEFAULT);
+        }
+        else if (c == 'o') {
+            return checkKeyword(2, 4, "uble", TOKEN_DOUBLE);
+        }
+        else {
+            return TOKEN_IDENTIFIER;
+        }
+    case 'e':
+        c = scanner.start[1];
+        if (c == 'n') {
+            return checkKeyword(2, 2, "um", TOKEN_ENUM);
+        }
+        else if (c == 'l') {
+            return checkKeyword(2, 2, "se", TOKEN_ELSE);
+        }
+        else {
+            return TOKEN_IDENTIFIER;
+        }
+    case 'f':
+        c = scanner.start[1];
+        if (c == 'l') {
+            return checkKeyword(2, 3, "oat", TOKEN_FLOAT);
+        }
+        else if (c == 'o') {
+            return checkKeyword(2, 1, "r", TOKEN_FOR);
+        }
+        else {
+            return TOKEN_IDENTIFIER;
+        }
+    case 'g': return checkKeyword(1, 3, "oto", TOKEN_GOTO);
+    case 'i':
+        c = scanner.start[1];
+        if (c == 'f') {
+            return TOKEN_IF;
+        }
+        else if (c == 'n') {
+            return checkKeyword(2, 1, "t", TOKEN_INT);
+        }
+        else {
+            return TOKEN_IDENTIFIER;
+        }
+    case 'l':
+        return checkKeyword(1, 3, "ong", TOKEN_LONG);
+    case 'r':
+        return checkKeyword(1, 5, "eturn", TOKEN_RETURN);
+    case 's':
+        c = scanner.start[1];
+        if (c == 'h') {
+            return checkKeyword(2, 3, "ort", TOKEN_SHORT);
+        }
+        else if (c == 'i') {
+            c = scanner.start[2];
+            if (c == 'g') {
+                return checkKeyword(3, 3, "ned", TOKEN_SIGNED);
+            }
+            else if (c == 'z') {
+                return checkKeyword(3, 3, "eof", TOKEN_SIZEOF);
+            }
+            else {
+                return TOKEN_IDENTIFIER;
+            }
+        }
+        else if (c == 't') {
+            return checkKeyword(2, 4, "ruct", TOKEN_STRUCT);
+        }
+        else if (c == 'w') {
+            return checkKeyword(2, 4, "itch", TOKEN_SWITCH);
+        }
+        else {
+            return TOKEN_IDENTIFIER;
+        }
+    case 't': return checkKeyword(1, 6, "ypedef", TOKEN_TYPEDEF);
+    case 'u':
+        c = scanner.start[1];
+        if (c == 'n') {
+            c = scanner.start[2];
+            if (c == 's') {
+                return checkKeyword(3, 5, "igned", TOKEN_UNSIGNED);
+            }
+            else if (c=='i') {
+                return checkKeyword(3, 2, "on", TOKEN_UNION);
+            }
+            else {
+                return TOKEN_IDENTIFIER;
+            }
+        }
+        else {
+            return TOKEN_IDENTIFIER;
+        }
+    case 'v':
+        return checkKeyword(1, 3, "oid", TOKEN_VOID);
+    case 'w':
+        return checkKeyword(1, 4, "hile", TOKEN_WHILE);
     }
-
     // identifier
     return TOKEN_IDENTIFIER;
 }
+
+static Token identifier() {
+    // IDENTIFIER包含: 字母，数字和下划线  a
+    while (isAlpha(peek()) || isDigit(peek())) {
+        advance();
+    }
+    // 这样的Token可能是标识符, 也可能是关键字, identifierType()是用来确定Token类型的
+    return makeToken(identifierType());
+}
+
 /***************************************************************************************
  *                                   	分词											  *
  ***************************************************************************************/
@@ -208,7 +438,7 @@ Token scanToken() {  // 状态机起点
         else return makeToken(TOKEN_LESS);
     case '>':
         if (match('=')) return makeToken(TOKEN_GREATER_EQUAL);
-        else if (match('<')) return makeToken(TOKEN_GREATER_GREATER);
+        else if (match('>')) return makeToken(TOKEN_GREATER_GREATER);
         else return makeToken(TOKEN_GREATER);
 
         // various-character tokens
