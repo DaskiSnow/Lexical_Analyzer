@@ -1,5 +1,6 @@
 // scanner.c
 #include "scanner.h"
+#include <stdbool.h>
 
 typedef struct {
     const char* start;  // 指向Token的起始位置
@@ -12,6 +13,8 @@ Scanner scanner;
 
 void initScanner(const char* source) {
     // 初始化scanner
+    scanner.current = source;
+    scanner.start = source;
 }
 
 /***************************************************************************************
