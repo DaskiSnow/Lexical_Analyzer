@@ -130,7 +130,7 @@ static TokenType checkKeyword(int start, int length, const char* rest, TokenType
 static TokenType identifierType() {
     char c = scanner.start[0];
     // 用switch语句实现Trie树
-    switch (c) {
+    switch (c) {  // 根据分支可能要不断调用chackKeyword()
     case 'b': return checkKeyword(1, 4, "reak", TOKEN_BREAK);
         ... // TODO
     }
@@ -141,7 +141,7 @@ static TokenType identifierType() {
 /***************************************************************************************
  *                                   	分词											  *
  ***************************************************************************************/
-Token scanToken() {
+Token scanToken() {  // 状态机起点
     // 跳过前置空白字符和注释
     skipWhitespace();
     // 记录下一个Token的起始位置
@@ -150,25 +150,71 @@ Token scanToken() {
     if (isAtEnd()) return makeToken(TOKEN_EOF);
 
     char c = advance();
-    if (isAlpha(c)) return identifier();
-    if (isDigit(c)) return number();
+    if (isAlpha(c)) return identifier();  // 标识符或者关键字 识别状态，并得出对应TOKEN
+    if (isDigit(c)) return number();      // 数字 识别状态，并得出数字TOKEN
 
     switch (c) {
-        // single-character tokens
+        // single-character tokens  一旦遇到，直接创建并ret对应TOKEN就可以了
     case '(': return makeToken(TOKEN_LEFT_PAREN);
-        ...	// TODO
+    case ')': return makeToken(TOKEN_RIGHT_PAREN);
+    case '[': return makeToken(TOKEN_LEFT_BRACKET);
+    case ']': return makeToken(TOKEN_RIGHT_BRACKET);
+    case '{': return makeToken(TOKEN_LEFT_BRACE);
+    case '}': return makeToken(TOKEN_RIGHT_BRACE);
+    case ',': return makeToken(TOKEN_COMMA);
+    case '.': return makeToken(TOKEN_DOT);
+    case ';': return makeToken(TOKEN_SEMICOLON);
+    case '~': return makeToken(TOKEN_TILDE);
 
-        // one or two characters tokens
+        // one or two characters tokens  遇到后，还要往后看一个字符，才能ret对应TOKEN
     case '+':
         if (match('+')) return makeToken(TOKEN_PLUS_PLUS);
         else if (match('=')) return makeToken(TOKEN_PLUS_EQUAL);
         else return makeToken(TOKEN_PLUS);
-        ... // TODO
+    case '-':
+        if (match('-')) return makeToken(TOKEN_MINUS_MINUS);
+        else if (match('=')) return makeToken(TOKEN_MINUS_EQUAL);
+        else if (match('>')) return makeToken(TOKEN_MINUS_GREATER);
+        else return makeToken(TOKEN_MINUS);
+    case '*':
+        if (match('=')) return makeToken(TOKEN_STAR_EQUAL);
+        else return makeToken(TOKEN_STAR);
+    case '/':
+        if (match('=')) return makeToken(TOKEN_SLASH_EQUAL);
+        else return makeToken(TOKEN_SLASH);
+    case '%':
+        if (match('=')) return makeToken(TOKEN_PERCENT_EQUAL);
+        else return makeToken(TOKEN_PERCENT);
+    case '&':
+        if (match('=')) return makeToken(TOKEN_AMPER_EQUAL);
+        else if (match('&')) return makeToken(TOKEN_AMPER_AMPER);
+        else return makeToken(TOKEN_AMPER);
+    case '|':
+        if (match('=')) return makeToken(TOKEN_PIPE_EQUAL);
+        else if (match('|')) return makeToken(TOKEN_PIPE_PIPE);
+        else return makeToken(TOKEN_PIPE);
+    case '^':
+        if (match('=')) return makeToken(TOKEN_HAT_EQUAL);
+        else return makeToken(TOKEN_HAT);
+    case '=':
+        if (match('=')) return makeToken(TOKEN_EQUAL_EQUAL);
+        else return makeToken(TOKEN_EQUAL);
+    case '!':
+        if (match('=')) return makeToken(TOKEN_BANG_EQUAL);
+        else return makeToken(TOKEN_BANG);
+    case '<':
+        if (match('=')) return makeToken(TOKEN_LESS_EQUAL);
+        else if (match('<')) return makeToken(TOKEN_LESS_LESS);
+        else return makeToken(TOKEN_LESS);
+    case '>':
+        if (match('=')) return makeToken(TOKEN_GREATER_EQUAL);
+        else if (match('<')) return makeToken(TOKEN_GREATER_GREATER);
+        else return makeToken(TOKEN_GREATER);
 
         // various-character tokens
-    case '"': return string();
-    case '\'': return character();
+    case '"': return string();  // 字符串 识别状态，并得出字符串TOKEN
+    case '\'': return character(); // 字符 识别状态，并得出字符TOKEN
     }
 
-    return errorToken("Unexpected character."); /
+    return errorToken("Unexpected character."); // 其余直接输出错误TOKEN
 }
